@@ -1,6 +1,6 @@
 """测试平台适配层"""
 import pytest
-from platform.factory import get_platform
+from mshell_platform.factory import get_platform
 
 
 def test_get_platform():

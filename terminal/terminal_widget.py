@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QTextEdit
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QTextCharFormat, QColor, QFont, QKeyEvent, QTextCursor
 
-from platform import get_platform
+from mshell_platform import get_platform
 from terminal.ansi_parser import AnsiParser, AnsiToken
 from terminal.color_scheme import ColorSchemeManager
 

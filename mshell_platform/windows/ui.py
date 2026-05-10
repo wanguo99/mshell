@@ -1,6 +1,6 @@
 """Windows平台UI实现"""
 from typing import List, Tuple
-from platform.base.ui import UIBase
+from mshell_platform.base.ui import UIBase
 
 
 class WindowsUI(UIBase):

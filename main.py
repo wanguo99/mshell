@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PyQt5.QtCore import Qt
 
 # 导入已实现的模块
-from platform import get_platform
+from mshell_platform import get_platform
 from config.config_manager import ConfigManager
 from terminal.terminal_widget import TerminalWidget
 from core.ssh_connection import SSHConnection

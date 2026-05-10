@@ -2,7 +2,7 @@
 import yaml
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from platform.factory import get_platform
+from mshell_platform.factory import get_platform
 
 
 class ConfigManager:

@@ -33,7 +33,7 @@ def get_platform() -> Platform:
         system = "Unknown"
 
     if system == "Windows":
-        from platform.windows import (
+        from mshell_platform.windows import (
             WindowsSerial,
             WindowsConfig,
             WindowsClipboard,
@@ -49,7 +49,7 @@ def get_platform() -> Platform:
         )
 
     elif system == "Linux":
-        from platform.linux import (
+        from mshell_platform.linux import (
             LinuxSerial,
             LinuxConfig,
             LinuxClipboard,
@@ -65,7 +65,7 @@ def get_platform() -> Platform:
         )
 
     elif system == "Darwin":
-        from platform.macos import (
+        from mshell_platform.macos import (
             MacOSSerial,
             MacOSConfig,
             MacOSClipboard,

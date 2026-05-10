@@ -1,7 +1,7 @@
 """Windows平台配置路径实现"""
 import os
 from pathlib import Path
-from platform.base.config import ConfigBase
+from mshell_platform.base.config import ConfigBase
 
 
 class WindowsConfig(ConfigBase):

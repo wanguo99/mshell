@@ -1,5 +1,5 @@
 """Windows平台剪贴板实现"""
-from platform.base.clipboard import ClipboardBase
+from mshell_platform.base.clipboard import ClipboardBase
 
 
 class WindowsClipboard(ClipboardBase):

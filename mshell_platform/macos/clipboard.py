@@ -1,12 +1,12 @@
-"""Linux平台剪贴板实现"""
-from platform.base.clipboard import ClipboardBase
+"""macOS平台剪贴板实现"""
+from mshell_platform.base.clipboard import ClipboardBase
 
 
-class LinuxClipboard(ClipboardBase):
-    """Linux平台剪贴板操作实现"""
+class MacOSClipboard(ClipboardBase):
+    """macOS平台剪贴板操作实现"""
 
     def get_text(self) -> str:
-        """获取Linux剪贴板文本"""
+        """获取macOS剪贴板文本"""
         try:
             import pyperclip
             return pyperclip.paste() or ""
@@ -14,7 +14,7 @@ class LinuxClipboard(ClipboardBase):
             return ""
 
     def set_text(self, text: str) -> None:
-        """设置Linux剪贴板文本"""
+        """设置macOS剪贴板文本"""
         try:
             import pyperclip
             pyperclip.copy(text)
@@ -22,7 +22,7 @@ class LinuxClipboard(ClipboardBase):
             pass
 
     def clear(self) -> None:
-        """清空Linux剪贴板"""
+        """清空macOS剪贴板"""
         try:
             import pyperclip
             pyperclip.copy("")

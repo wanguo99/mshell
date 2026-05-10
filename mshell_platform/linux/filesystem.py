@@ -2,7 +2,7 @@
 import os
 import subprocess
 from pathlib import Path
-from platform.base.filesystem import FilesystemBase
+from mshell_platform.base.filesystem import FilesystemBase
 
 
 class LinuxFilesystem(FilesystemBase):
