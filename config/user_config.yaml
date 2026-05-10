@@ -1,0 +1,140 @@
+application:
+  check_updates: true
+  language: zh_CN
+  replace_welcome_page: false
+  restore_session: false
+  restore_session_on_startup: true
+  save_session_on_exit: true
+  theme: dark
+auto_close_on_disconnect: true
+color_schemes:
+  default:
+    ansi_colors:
+    - '#000000'
+    - '#CD0000'
+    - '#00CD00'
+    - '#CDCD00'
+    - '#0000EE'
+    - '#CD00CD'
+    - '#00CDCD'
+    - '#E5E5E5'
+    - '#7F7F7F'
+    - '#FF0000'
+    - '#00FF00'
+    - '#FFFF00'
+    - '#5C5CFF'
+    - '#FF00FF'
+    - '#00FFFF'
+    - '#FFFFFF'
+    background: '#000000'
+    cursor: '#FFFFFF'
+    foreground: '#FFFFFF'
+    name: 默认
+    selection: '#4D4D4D'
+  monokai:
+    ansi_colors:
+    - '#272822'
+    - '#F92672'
+    - '#A6E22E'
+    - '#F4BF75'
+    - '#66D9EF'
+    - '#AE81FF'
+    - '#A1EFE4'
+    - '#F8F8F2'
+    - '#75715E'
+    - '#F92672'
+    - '#A6E22E'
+    - '#F4BF75'
+    - '#66D9EF'
+    - '#AE81FF'
+    - '#A1EFE4'
+    - '#F9F8F5'
+    background: '#272822'
+    cursor: '#F8F8F0'
+    foreground: '#F8F8F2'
+    name: Monokai
+    selection: '#49483E'
+  solarized_dark:
+    ansi_colors:
+    - '#073642'
+    - '#dc322f'
+    - '#859900'
+    - '#b58900'
+    - '#268bd2'
+    - '#d33682'
+    - '#2aa198'
+    - '#eee8d5'
+    - '#002b36'
+    - '#cb4b16'
+    - '#586e75'
+    - '#657b83'
+    - '#839496'
+    - '#6c71c4'
+    - '#93a1a1'
+    - '#fdf6e3'
+    background: '#002b36'
+    cursor: '#839496'
+    foreground: '#839496'
+    name: Solarized Dark
+    selection: '#073642'
+confirm_exit_with_connections: true
+connections:
+- auth_type: password
+  host: 192.168.1.100
+  id: 80405246-ebfc-400f-9b0c-593fd7a1b227
+  name: 示例SSH连接
+  port: 22
+  type: ssh
+  username: root
+- baudrate: 115200
+  bytesize: 8
+  id: 2e612642-149d-4ee6-8c21-a08dfd7d672b
+  name: 示例串口连接
+  parity: N
+  port: COM3
+  stopbits: 1
+  type: serial
+- auth_type: password
+  host: 10.10.2.206
+  id: 8050f088-abc6-4e94-b975-6260cc43be79
+  key_file: ''
+  name: 10.10.2.206
+  password: p
+  port: 22
+  type: ssh
+  username: wanguo
+file_transfer:
+  confirm_overwrite: true
+  default_local_path: '~'
+  default_remote_path: '~'
+  show_hidden_files: false
+  transfer_buffer_size: 32768
+quick_commands:
+- command: uname -a
+  name: 系统信息
+  shortcut: F1
+- command: df -h
+  name: 磁盘使用
+  shortcut: F2
+- command: free -h
+  name: 内存使用
+  shortcut: F3
+- command: ps aux
+  name: 进程列表
+  shortcut: F4
+shortcuts:
+  Ctrl+F: find
+  Ctrl+L: clear_screen
+  Ctrl+Shift+C: copy
+  Ctrl+Shift+F: file_transfer
+  Ctrl+Shift+V: paste
+  Ctrl+T: new_tab
+  Ctrl+W: close_tab
+  F5: reconnect
+terminal:
+  color_scheme: default
+  font_family: Consolas
+  font_size: 11
+  scrollback_lines: 10000
+ui:
+  show_sidebar: true

@@ -20,6 +20,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# Python bytecode cache (centralized)
+.cache/
+
 # Virtual Environment
 venv/
 ENV/
@@ -37,7 +40,7 @@ env/
 *.ui.py
 
 # Config files (user-specific)
-config/user_config.yaml
+.config/
 *.log
 
 # Test

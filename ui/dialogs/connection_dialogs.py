@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QDialog, QFormLayout, QLineEdit, QSpinBox,
                              QPushButton, QMessageBox)
 from PyQt5.QtCore import Qt
 
-from core.serial_connection import SerialConnection
+from infrastructure.adapters.async_serial_adapter import AsyncSerialAdapter
 from ui.theme import Theme, get_stylesheet
 
 
@@ -118,7 +118,7 @@ class SerialConnectionDialog(QDialog):
 
         # 串口选择
         self.port_combo = QComboBox()
-        ports = SerialConnection.list_available_ports()
+        ports = AsyncSerialAdapter.list_available_ports()
         for port in ports:
             self.port_combo.addItem(f"{port['device']} - {port['description']}", port['device'])
 
