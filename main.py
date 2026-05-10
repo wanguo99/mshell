@@ -20,6 +20,7 @@ from core.serial_connection import SerialConnection
 from core.command_executor import CommandExecutor
 from ui.connection_dialogs import (SSHConnectionDialog, SerialConnectionDialog,
                                    SavedConnectionsDialog)
+from ui.connection_close_dialog import ConnectionCloseDialog
 
 
 class SimpleMainWindow(QMainWindow):
@@ -31,6 +32,10 @@ class SimpleMainWindow(QMainWindow):
         self.config_manager = ConfigManager()
         self.command_executor = CommandExecutor()
         self.connections = {}
+        self.tab_names = {}  # 存储标签页名称
+
+        # 连接关闭行为配置
+        self.auto_close_on_disconnect = None  # None=询问, True=自动关闭, False=不关闭
 
         self.init_ui()
         self.load_config()
@@ -210,9 +215,8 @@ class SimpleMainWindow(QMainWindow):
         # 创建SSH连接
         ssh = SSHConnection()
 
-        # 连接信号（线程安全）
+        # 连接数据信号（线程安全）
         ssh.data_received.connect(lambda data: terminal.write_output(data.decode('utf-8', errors='ignore')))
-        ssh.connection_changed.connect(lambda connected: self.update_connection_status(connected, f"SSH {host}"))
         terminal.data_to_send.connect(ssh.send)
 
         # 尝试连接
@@ -237,6 +241,11 @@ class SimpleMainWindow(QMainWindow):
             index = self.tab_widget.addTab(terminal, tab_name)
             self.tab_widget.setCurrentIndex(index)
             self.connections[index] = ssh
+            self.tab_names[index] = tab_name
+
+            # 连接状态变化信号（需要索引信息）
+            ssh.connection_changed.connect(lambda connected: self.handle_connection_changed(index, connected, tab_name))
+
             self.status_label.setText(f"已连接到 {host}")
         else:
             QMessageBox.warning(self, "连接失败", f"无法连接到 {host}")
@@ -256,9 +265,8 @@ class SimpleMainWindow(QMainWindow):
         # 创建串口连接
         serial = SerialConnection()
 
-        # 连接信号（线程安全）
+        # 连接数据信号（线程安全）
         serial.data_received.connect(lambda data: terminal.write_output(data.decode('utf-8', errors='ignore')))
-        serial.connection_changed.connect(lambda connected: self.update_connection_status(connected, f"Serial {port}"))
         terminal.data_to_send.connect(serial.send)
 
         # 尝试连接
@@ -269,6 +277,11 @@ class SimpleMainWindow(QMainWindow):
             index = self.tab_widget.addTab(terminal, tab_name)
             self.tab_widget.setCurrentIndex(index)
             self.connections[index] = serial
+            self.tab_names[index] = tab_name
+
+            # 连接状态变化信号（需要索引信息）
+            serial.connection_changed.connect(lambda connected: self.handle_connection_changed(index, connected, tab_name))
+
             self.status_label.setText(f"已连接到 {port}")
         else:
             QMessageBox.warning(self, "连接失败", f"无法打开串口 {port}")
@@ -279,14 +292,61 @@ class SimpleMainWindow(QMainWindow):
         if index == 0:
             return
 
+        # 先断开连接（如果存在）
         if index in self.connections:
-            self.connections[index].disconnect()
+            conn = self.connections[index]
+            # 断开信号连接，避免递归
+            try:
+                conn.connection_changed.disconnect()
+            except:
+                pass
+            # 断开连接
+            conn.disconnect()
             del self.connections[index]
+
+        if index in self.tab_names:
+            del self.tab_names[index]
 
         self.tab_widget.removeTab(index)
 
+    def handle_connection_changed(self, tab_index, connected, connection_name):
+        """处理连接状态变化
+
+        Args:
+            tab_index: 标签页索引
+            connected: 是否已连接
+            connection_name: 连接名称
+        """
+        if connected:
+            # 连接成功
+            self.status_label.setText(f"{connection_name}: 已连接")
+        else:
+            # 连接断开
+            self.status_label.setText(f"{connection_name}: 已断开")
+
+            # 检查是否需要关闭标签页
+            if self.auto_close_on_disconnect is None:
+                # 询问用户
+                dialog = ConnectionCloseDialog(connection_name, self)
+                result = dialog.exec_()
+
+                if dialog.remember_choice:
+                    # 记住用户选择
+                    self.auto_close_on_disconnect = (result == QDialog.Accepted)
+                    # 保存到配置
+                    self.config_manager.set('auto_close_on_disconnect', self.auto_close_on_disconnect)
+                    self.config_manager.save()
+
+                if result == QDialog.Accepted:
+                    # 用户选择关闭
+                    self.close_tab(tab_index)
+            elif self.auto_close_on_disconnect:
+                # 自动关闭
+                self.close_tab(tab_index)
+            # else: 不关闭，保持标签页
+
     def update_connection_status(self, connected, name):
-        """更新连接状态"""
+        """更新连接状态（已弃用，保留兼容性）"""
         status = "已连接" if connected else "已断开"
         self.status_label.setText(f"{name}: {status}")
 
@@ -294,6 +354,12 @@ class SimpleMainWindow(QMainWindow):
         """加载配置"""
         try:
             self.config_manager.load()
+
+            # 加载连接关闭行为配置
+            auto_close = self.config_manager.get('auto_close_on_disconnect')
+            if auto_close is not None:
+                self.auto_close_on_disconnect = auto_close
+
             print("配置加载成功")
         except Exception as e:
             print(f"配置加载失败: {e}")

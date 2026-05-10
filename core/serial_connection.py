@@ -22,6 +22,7 @@ class SerialConnection(ConnectionManager):
         self._serial: Optional[serial.Serial] = None
         self._receive_thread: Optional[threading.Thread] = None
         self._running = False
+        self._disconnecting = False  # 防止重复断开通知
         self.platform = get_platform()
 
     def connect(self, port: str, baudrate: int = 9600, bytesize: int = 8,
@@ -86,6 +87,11 @@ class SerialConnection(ConnectionManager):
 
     def disconnect(self):
         """断开串口连接"""
+        # 防止重复断开
+        if self._disconnecting:
+            return
+
+        self._disconnecting = True
         self._running = False
 
         # 等待接收线程结束

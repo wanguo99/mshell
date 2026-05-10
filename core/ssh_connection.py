@@ -21,6 +21,7 @@ class SSHConnection(ConnectionManager):
         self._channel: Optional[paramiko.Channel] = None
         self._receive_thread: Optional[threading.Thread] = None
         self._running = False
+        self._disconnecting = False  # 防止重复断开通知
 
     def connect(self, host: str, port: int = 22, username: str = "",
                 password: str = "", key_file: str = "", timeout: int = 10) -> bool:
@@ -98,6 +99,11 @@ class SSHConnection(ConnectionManager):
 
     def disconnect(self):
         """断开SSH连接"""
+        # 防止重复断开
+        if self._disconnecting:
+            return
+
+        self._disconnecting = True
         self._running = False
 
         # 等待接收线程结束
