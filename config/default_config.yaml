@@ -1,0 +1,148 @@
+# 默认配置文件
+
+# 连接配置
+connections:
+  - name: "示例SSH连接"
+    type: "ssh"
+    host: "192.168.1.100"
+    port: 22
+    username: "root"
+    auth_type: "password"  # password 或 key
+    # password: ""  # 不建议保存密码
+    # key_file: ""
+
+  - name: "示例串口连接"
+    type: "serial"
+    port: "COM3"  # Windows: COM3, Linux: /dev/ttyUSB0, macOS: /dev/cu.usbserial
+    baudrate: 115200
+    bytesize: 8
+    parity: "N"  # N, E, O, M, S
+    stopbits: 1
+
+# 快捷键配置
+shortcuts:
+  "Ctrl+T": "new_tab"
+  "Ctrl+W": "close_tab"
+  "Ctrl+Shift+C": "copy"
+  "Ctrl+Shift+V": "paste"
+  "Ctrl+Shift+F": "file_transfer"
+  "F5": "reconnect"
+  "Ctrl+F": "find"
+  "Ctrl+L": "clear_screen"
+
+# 快捷指令
+quick_commands:
+  - name: "系统信息"
+    command: "uname -a"
+    shortcut: "F1"
+
+  - name: "磁盘使用"
+    command: "df -h"
+    shortcut: "F2"
+
+  - name: "内存使用"
+    command: "free -h"
+    shortcut: "F3"
+
+  - name: "进程列表"
+    command: "ps aux"
+    shortcut: "F4"
+
+# 终端设置
+terminal:
+  font_family: "Consolas"  # 将根据平台自动调整
+  font_size: 12
+  color_scheme: "default"
+  scrollback_lines: 1000
+  cursor_blink: true
+  bell_enabled: false
+
+# 颜色方案
+color_schemes:
+  default:
+    name: "默认"
+    background: "#000000"
+    foreground: "#FFFFFF"
+    cursor: "#FFFFFF"
+    selection: "#4D4D4D"
+    ansi_colors:
+      - "#000000"  # Black
+      - "#CD0000"  # Red
+      - "#00CD00"  # Green
+      - "#CDCD00"  # Yellow
+      - "#0000EE"  # Blue
+      - "#CD00CD"  # Magenta
+      - "#00CDCD"  # Cyan
+      - "#E5E5E5"  # White
+      - "#7F7F7F"  # Bright Black
+      - "#FF0000"  # Bright Red
+      - "#00FF00"  # Bright Green
+      - "#FFFF00"  # Bright Yellow
+      - "#5C5CFF"  # Bright Blue
+      - "#FF00FF"  # Bright Magenta
+      - "#00FFFF"  # Bright Cyan
+      - "#FFFFFF"  # Bright White
+
+  solarized_dark:
+    name: "Solarized Dark"
+    background: "#002b36"
+    foreground: "#839496"
+    cursor: "#839496"
+    selection: "#073642"
+    ansi_colors:
+      - "#073642"
+      - "#dc322f"
+      - "#859900"
+      - "#b58900"
+      - "#268bd2"
+      - "#d33682"
+      - "#2aa198"
+      - "#eee8d5"
+      - "#002b36"
+      - "#cb4b16"
+      - "#586e75"
+      - "#657b83"
+      - "#839496"
+      - "#6c71c4"
+      - "#93a1a1"
+      - "#fdf6e3"
+
+  monokai:
+    name: "Monokai"
+    background: "#272822"
+    foreground: "#F8F8F2"
+    cursor: "#F8F8F0"
+    selection: "#49483E"
+    ansi_colors:
+      - "#272822"
+      - "#F92672"
+      - "#A6E22E"
+      - "#F4BF75"
+      - "#66D9EF"
+      - "#AE81FF"
+      - "#A1EFE4"
+      - "#F8F8F2"
+      - "#75715E"
+      - "#F92672"
+      - "#A6E22E"
+      - "#F4BF75"
+      - "#66D9EF"
+      - "#AE81FF"
+      - "#A1EFE4"
+      - "#F9F8F5"
+
+# 文件传输设置
+file_transfer:
+  default_local_path: "~"
+  default_remote_path: "~"
+  show_hidden_files: false
+  confirm_overwrite: true
+  transfer_buffer_size: 32768  # 32KB
+
+# 应用设置
+application:
+  language: "zh_CN"  # zh_CN, en_US
+  theme: "system"  # system, light, dark
+  check_updates: true
+  save_session_on_exit: true
+  restore_session_on_startup: true
