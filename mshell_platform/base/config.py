@@ -8,7 +8,7 @@ class ConfigBase(ABC):
 
     @abstractmethod
     def get_config_dir(self) -> Path:
-        """获取配置文件目录
+        r"""获取配置文件目录
 
         Returns:
             Path: 配置目录路径

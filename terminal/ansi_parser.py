@@ -30,8 +30,13 @@ class AnsiToken:
 class AnsiParser:
     """ANSI转义序列解析器"""
 
-    # ANSI转义序列正则表达式
-    ANSI_ESCAPE_PATTERN = re.compile(r'\x1b\[([0-9;]*)([A-Za-z])')
+    # 组合所有ANSI转义序列模式
+    ANSI_ESCAPE_PATTERN = re.compile(
+        r'\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|'  # OSC序列: ESC ] ... BEL/ST
+        r'\x1b\[[0-9;?]*[A-Za-z]|'              # CSI序列: ESC [ params letter
+        r'\x1b[=>()#][^\x1b]*|'                 # 其他转义序列
+        r'\x1b.'                                 # 任何其他ESC开头的2字节序列
+    )
 
     # 标准16色映射 (30-37, 40-47)
     STANDARD_COLORS = {
@@ -81,10 +86,16 @@ class AnsiParser:
                 if plain_text:
                     tokens.append(AnsiToken(plain_text, self._copy_style()))
 
-            # 处理ANSI序列
-            params = match.group(1)
-            command = match.group(2)
-            self._process_ansi_sequence(params, command)
+            # 检查是否是CSI序列（包含参数和命令）
+            matched_text = match.group(0)
+            if matched_text.startswith('\x1b['):
+                # 提取CSI参数和命令
+                csi_match = re.match(r'\x1b\[([0-9;]*)([A-Za-z])', matched_text)
+                if csi_match:
+                    params = csi_match.group(1) or ""
+                    command = csi_match.group(2)
+                    self._process_ansi_sequence(params, command)
+            # 其他序列（OSC、私有模式等）直接忽略
 
             last_pos = match.end()
 

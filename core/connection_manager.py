@@ -1,70 +1,75 @@
-"""连接管理抽象基类
+"""Connection Manager Base Class
 
-定义连接管理器的统一接口，供SSH和串口连接实现。
+Defines unified interface for connection managers (SSH and Serial).
 """
 
-from abc import ABC, abstractmethod
-from typing import Callable, Optional
+from abc import ABCMeta, abstractmethod
+from PyQt5.QtCore import QObject, pyqtSignal
 
 
-class ConnectionManager(ABC):
-    """连接管理器抽象基类"""
+class QABCMeta(type(QObject), ABCMeta):
+    """Metaclass compatible with both QObject and ABC"""
+    pass
+
+
+class ConnectionManager(QObject, metaclass=QABCMeta):
+    """Connection Manager Abstract Base Class"""
+
+    # Signal: data received
+    data_received = pyqtSignal(bytes)
+    # Signal: connection status changed
+    connection_changed = pyqtSignal(bool)
 
     def __init__(self):
-        # 数据接收回调: (data: bytes) -> None
-        self.on_data_received: Optional[Callable[[bytes], None]] = None
-        # 连接状态变化回调: (connected: bool) -> None
-        self.on_connection_changed: Optional[Callable[[bool], None]] = None
+        super().__init__()
 
     @abstractmethod
     def connect(self, **kwargs) -> bool:
-        """建立连接
+        """Establish connection
 
         Args:
-            **kwargs: 连接参数（由子类定义）
+            **kwargs: Connection parameters (defined by subclass)
 
         Returns:
-            连接是否成功
+            Whether connection succeeded
         """
         pass
 
     @abstractmethod
     def disconnect(self):
-        """断开连接"""
+        """Disconnect"""
         pass
 
     @abstractmethod
     def send(self, data: bytes):
-        """发送数据
+        """Send data
 
         Args:
-            data: 要发送的字节数据
+            data: Byte data to send
         """
         pass
 
     @abstractmethod
     def is_connected(self) -> bool:
-        """检查是否已连接
+        """Check if connected
 
         Returns:
-            是否已连接
+            Whether connected
         """
         pass
 
     def _notify_data_received(self, data: bytes):
-        """通知数据接收
+        """Notify data received (thread-safe)
 
         Args:
-            data: 接收到的数据
+            data: Received data
         """
-        if self.on_data_received:
-            self.on_data_received(data)
+        self.data_received.emit(data)
 
     def _notify_connection_changed(self, connected: bool):
-        """通知连接状态变化
+        """Notify connection status changed (thread-safe)
 
         Args:
-            connected: 是否已连接
+            connected: Whether connected
         """
-        if self.on_connection_changed:
-            self.on_connection_changed(connected)
+        self.connection_changed.emit(connected)

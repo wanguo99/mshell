@@ -8,7 +8,7 @@ MShell - 跨平台终端工具
 import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QLabel, QTabWidget,
-                             QMessageBox, QInputDialog, QLineEdit)
+                             QMessageBox, QInputDialog, QLineEdit, QDialog)
 from PyQt5.QtCore import Qt
 
 # 导入已实现的模块
@@ -210,9 +210,9 @@ class SimpleMainWindow(QMainWindow):
         # 创建SSH连接
         ssh = SSHConnection()
 
-        # 连接信号
-        ssh.on_data_received = lambda data: terminal.write_output(data.decode('utf-8', errors='ignore'))
-        ssh.on_connection_changed = lambda connected: self.update_connection_status(connected, f"SSH {host}")
+        # 连接信号（线程安全）
+        ssh.data_received.connect(lambda data: terminal.write_output(data.decode('utf-8', errors='ignore')))
+        ssh.connection_changed.connect(lambda connected: self.update_connection_status(connected, f"SSH {host}"))
         terminal.data_to_send.connect(ssh.send)
 
         # 尝试连接
@@ -230,6 +230,9 @@ class SimpleMainWindow(QMainWindow):
             connect_kwargs['password'] = password
 
         if ssh.connect(**connect_kwargs):
+            # 通知SSH终端大小
+            ssh.resize_terminal(terminal.cols, terminal.rows)
+
             tab_name = config.get('name') or f"SSH - {host}"
             index = self.tab_widget.addTab(terminal, tab_name)
             self.tab_widget.setCurrentIndex(index)
@@ -253,9 +256,9 @@ class SimpleMainWindow(QMainWindow):
         # 创建串口连接
         serial = SerialConnection()
 
-        # 连接信号
-        serial.on_data_received = lambda data: terminal.write_output(data.decode('utf-8', errors='ignore'))
-        serial.on_connection_changed = lambda connected: self.update_connection_status(connected, f"Serial {port}")
+        # 连接信号（线程安全）
+        serial.data_received.connect(lambda data: terminal.write_output(data.decode('utf-8', errors='ignore')))
+        serial.connection_changed.connect(lambda connected: self.update_connection_status(connected, f"Serial {port}"))
         terminal.data_to_send.connect(serial.send)
 
         # 尝试连接
