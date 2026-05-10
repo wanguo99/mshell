@@ -33,16 +33,24 @@ class TerminalWidget(QTextEdit):
         self.screen = pyte.Screen(cols, rows)
         self.stream = pyte.Stream(self.screen)
 
+        # History buffer for scrollback
+        self.history_lines = []
+        self.max_history = 10000  # 最大历史行数
+
         # Setup terminal
         self._setup_terminal()
 
         # Refresh timer for rendering
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self._render_screen)
-        self.refresh_timer.start(50)  # 20 FPS
+        self.refresh_timer.start(100)  # 10 FPS - 降低刷新率减少CPU占用
 
         # Track if screen needs redraw
         self.dirty = False
+
+        # Batch rendering - 批量处理数据
+        self.pending_data = []
+        self.last_render_time = 0
 
     def _setup_terminal(self):
         """Setup terminal attributes"""
@@ -65,6 +73,13 @@ class TerminalWidget(QTextEdit):
         # Accept focus for keyboard events
         self.setFocusPolicy(Qt.StrongFocus)
 
+        # Enable vertical scrollbar
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        # 禁用Tab键的默认焦点切换行为
+        self.setTabChangesFocus(False)
+
     def write_output(self, data: str):
         """Write output to terminal
 
@@ -74,14 +89,29 @@ class TerminalWidget(QTextEdit):
         if not data:
             return
 
-        # Feed data to pyte stream
-        self.stream.feed(data)
-        self.dirty = True
+        # 批量处理数据，减少渲染次数
+        self.pending_data.append(data)
+
+        # 如果累积数据较多，立即处理
+        if len(self.pending_data) > 10:
+            self._flush_pending_data()
+        else:
+            self.dirty = True
+
+    def _flush_pending_data(self):
+        """处理待处理的数据"""
+        if self.pending_data:
+            for data in self.pending_data:
+                self.stream.feed(data)
+            self.pending_data.clear()
 
     def _render_screen(self):
         """Render pyte screen to QTextEdit"""
         if not self.dirty:
             return
+
+        # 先处理所有待处理的数据
+        self._flush_pending_data()
 
         self.dirty = False
 
@@ -90,12 +120,44 @@ class TerminalWidget(QTextEdit):
         default_fg = QColor(*scheme.get_foreground())
         default_bg = QColor(*scheme.get_background())
 
-        # Clear document
+        # Save scroll position
+        scrollbar = self.verticalScrollBar()
+        old_value = scrollbar.value()
+        at_bottom = (old_value == scrollbar.maximum())
+
+        # Get current cursor position
+        cursor = self.textCursor()
+
+        # Move to end and render new content
+        cursor.movePosition(QTextCursor.End)
+
+        # Check if we need to save lines to history
+        # When screen scrolls, top lines move to history
+        current_line_count = self.document().blockCount()
+        if current_line_count > self.rows:
+            # Save excess lines to history
+            cursor.movePosition(QTextCursor.Start)
+            for _ in range(current_line_count - self.rows):
+                cursor.select(QTextCursor.LineUnderCursor)
+                line_text = cursor.selectedText()
+                if len(self.history_lines) >= self.max_history:
+                    self.history_lines.pop(0)
+                self.history_lines.append(line_text)
+                cursor.movePosition(QTextCursor.Down)
+                cursor.movePosition(QTextCursor.StartOfLine)
+
+        # Clear and render current screen
         self.clear()
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.Start)
 
-        # Render each line
+        # Render history lines first (for scrollback)
+        # 减少历史行渲染数量以提升性能
+        max_visible_history = 500  # 只渲染最近500行历史
+        for hist_line in self.history_lines[-max_visible_history:]:
+            cursor.insertText(hist_line + '\n')
+
+        # Render each line from pyte screen
         for y in range(self.screen.lines):
             line = self.screen.buffer[y]
 
@@ -139,15 +201,22 @@ class TerminalWidget(QTextEdit):
             if y < self.screen.lines - 1:
                 cursor.insertText('\n')
 
-        # Position cursor at pyte cursor position
+        # Position cursor at pyte cursor position (offset by history)
         cursor.movePosition(QTextCursor.Start)
-        for _ in range(self.screen.cursor.y):
+        max_visible_history = 500
+        history_offset = min(len(self.history_lines), max_visible_history)
+        for _ in range(history_offset + self.screen.cursor.y):
             cursor.movePosition(QTextCursor.Down)
         for _ in range(self.screen.cursor.x):
             cursor.movePosition(QTextCursor.Right)
 
         self.setTextCursor(cursor)
-        self.ensureCursorVisible()
+
+        # Restore scroll position or scroll to bottom
+        if at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
+        else:
+            scrollbar.setValue(old_value)
 
     def _convert_color(self, color):
         """Convert pyte color to RGB tuple
@@ -228,12 +297,15 @@ class TerminalWidget(QTextEdit):
         text = event.text()
 
         # Handle special keys
-        if key == Qt.Key_Return or key == Qt.Key_Enter:
+        if key == Qt.Key_Tab:
+            # 强制处理Tab键，不让它传播到父widget
+            self.data_to_send.emit(b'\t')
+            event.accept()  # 标记事件已处理
+            return
+        elif key == Qt.Key_Return or key == Qt.Key_Enter:
             self.data_to_send.emit(b'\r')
         elif key == Qt.Key_Backspace:
             self.data_to_send.emit(b'\x7f')
-        elif key == Qt.Key_Tab:
-            self.data_to_send.emit(b'\t')
         elif key == Qt.Key_Up:
             self.data_to_send.emit(b'\x1b[A')
         elif key == Qt.Key_Down:
@@ -280,9 +352,13 @@ class TerminalWidget(QTextEdit):
             except UnicodeEncodeError:
                 pass
 
+        # 标记所有事件为已处理，防止传播
+        event.accept()
+
     def clear(self):
         """Clear terminal"""
         self.document().clear()
+        self.history_lines.clear()  # 清空历史缓冲区
 
     def set_font(self, font_family: str, font_size: int):
         """Set font
