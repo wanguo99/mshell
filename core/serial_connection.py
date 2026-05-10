@@ -11,7 +11,7 @@ import serial
 import serial.tools.list_ports
 
 from core.connection_manager import ConnectionManager
-from tests.mock_platform import get_mock_platform
+from platform import get_platform
 
 
 class SerialConnection(ConnectionManager):
@@ -22,7 +22,7 @@ class SerialConnection(ConnectionManager):
         self._serial: Optional[serial.Serial] = None
         self._receive_thread: Optional[threading.Thread] = None
         self._running = False
-        self.platform = get_mock_platform()
+        self.platform = get_platform()
 
     def connect(self, port: str, baudrate: int = 9600, bytesize: int = 8,
                 parity: str = 'N', stopbits: int = 1, timeout: float = 1.0) -> bool:

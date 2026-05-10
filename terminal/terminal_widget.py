@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QTextEdit
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QTextCharFormat, QColor, QFont, QKeyEvent, QTextCursor
 
-from tests.mock_platform import get_mock_platform
+from platform import get_platform
 from terminal.ansi_parser import AnsiParser, AnsiToken
 from terminal.color_scheme import ColorSchemeManager
 
@@ -21,8 +21,8 @@ class TerminalWidget(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # 使用mock platform (Day 5会切换到真实接口)
-        self.platform = get_mock_platform()
+        # 使用真实platform接口
+        self.platform = get_platform()
 
         # 初始化ANSI解析器和颜色方案
         self.ansi_parser = AnsiParser()
