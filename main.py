@@ -43,7 +43,14 @@ class SimpleMainWindow(QMainWindow):
     def init_ui(self):
         """初始化UI"""
         self.setWindowTitle("MShell - 跨平台终端工具")
-        self.setGeometry(100, 100, 1200, 800)
+
+        # 设置窗口大小
+        window_width = 1200
+        window_height = 800
+        self.resize(window_width, window_height)
+
+        # 居中显示窗口
+        self.center_window()
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -68,10 +75,6 @@ class SimpleMainWindow(QMainWindow):
         toolbar_layout.addWidget(self.btn_saved)
 
         toolbar_layout.addStretch()
-
-        # 状态标签
-        self.status_label = QLabel("就绪")
-        toolbar_layout.addWidget(self.status_label)
 
         main_layout.addLayout(toolbar_layout)
 
@@ -123,6 +126,15 @@ class SimpleMainWindow(QMainWindow):
         layout.addStretch()
 
         self.tab_widget.addTab(welcome_widget, "欢迎")
+
+    def center_window(self):
+        """将窗口居中显示在屏幕上"""
+        from PyQt5.QtWidgets import QDesktopWidget
+        screen = QDesktopWidget().screenGeometry()
+        window = self.geometry()
+        x = (screen.width() - window.width()) // 2
+        y = (screen.height() - window.height()) // 2
+        self.move(x, y)
 
     def show_saved_connections(self):
         """显示已保存的连接"""
@@ -220,8 +232,6 @@ class SimpleMainWindow(QMainWindow):
         terminal.data_to_send.connect(ssh.send)
 
         # 尝试连接
-        self.status_label.setText(f"正在连接 {host}...")
-
         connect_kwargs = {
             'host': host,
             'port': port,
@@ -245,11 +255,8 @@ class SimpleMainWindow(QMainWindow):
 
             # 连接状态变化信号（需要索引信息）
             ssh.connection_changed.connect(lambda connected: self.handle_connection_changed(index, connected, tab_name))
-
-            self.status_label.setText(f"已连接到 {host}")
         else:
             QMessageBox.warning(self, "连接失败", f"无法连接到 {host}")
-            self.status_label.setText("连接失败")
 
     def connect_serial(self, config):
         """建立串口连接"""
@@ -270,7 +277,6 @@ class SimpleMainWindow(QMainWindow):
         terminal.data_to_send.connect(serial.send)
 
         # 尝试连接
-        self.status_label.setText(f"正在连接 {port}...")
         if serial.connect(port=port, baudrate=baudrate, bytesize=bytesize,
                          parity=parity, stopbits=stopbits):
             tab_name = config.get('name') or f"Serial - {port}"
@@ -281,11 +287,8 @@ class SimpleMainWindow(QMainWindow):
 
             # 连接状态变化信号（需要索引信息）
             serial.connection_changed.connect(lambda connected: self.handle_connection_changed(index, connected, tab_name))
-
-            self.status_label.setText(f"已连接到 {port}")
         else:
             QMessageBox.warning(self, "连接失败", f"无法打开串口 {port}")
-            self.status_label.setText("连接失败")
 
     def close_tab(self, index):
         """关闭标签页"""
@@ -317,12 +320,8 @@ class SimpleMainWindow(QMainWindow):
             connected: 是否已连接
             connection_name: 连接名称
         """
-        if connected:
-            # 连接成功
-            self.status_label.setText(f"{connection_name}: 已连接")
-        else:
+        if not connected:
             # 连接断开
-            self.status_label.setText(f"{connection_name}: 已断开")
 
             # 检查是否需要关闭标签页
             if self.auto_close_on_disconnect is None:
@@ -345,10 +344,6 @@ class SimpleMainWindow(QMainWindow):
                 self.close_tab(tab_index)
             # else: 不关闭，保持标签页
 
-    def update_connection_status(self, connected, name):
-        """更新连接状态（已弃用，保留兼容性）"""
-        status = "已连接" if connected else "已断开"
-        self.status_label.setText(f"{name}: {status}")
 
     def load_config(self):
         """加载配置"""
@@ -366,7 +361,14 @@ class SimpleMainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """关闭事件"""
-        for conn in self.connections.values():
+        # 复制连接列表，避免在迭代时修改字典
+        connections = list(self.connections.values())
+        for conn in connections:
+            try:
+                # 断开信号连接，避免触发关闭对话框
+                conn.connection_changed.disconnect()
+            except:
+                pass
             conn.disconnect()
         event.accept()
 
