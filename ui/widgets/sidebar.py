@@ -90,6 +90,7 @@ class Sidebar(QWidget):
                 background-color: #3c3c3c;
                 color: #cccccc;
                 border: none;
+                outline: none;
                 padding: 6px;
                 border-radius: 2px;
                 font-size: 11px;
@@ -100,6 +101,10 @@ class Sidebar(QWidget):
             }
             QPushButton:pressed {
                 background-color: #5c5c5c;
+            }
+            QPushButton:focus {
+                outline: none;
+                border: none;
             }
         """)
         self.btn_ssh.clicked.connect(self.new_ssh_clicked.emit)
@@ -113,6 +118,7 @@ class Sidebar(QWidget):
                 background-color: #3c3c3c;
                 color: #cccccc;
                 border: none;
+                outline: none;
                 padding: 6px;
                 border-radius: 2px;
                 font-size: 11px;
@@ -123,6 +129,10 @@ class Sidebar(QWidget):
             }
             QPushButton:pressed {
                 background-color: #5c5c5c;
+            }
+            QPushButton:focus {
+                outline: none;
+                border: none;
             }
         """)
         self.btn_serial.clicked.connect(self.new_serial_clicked.emit)
