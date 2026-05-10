@@ -53,7 +53,7 @@ terminal:
   font_family: "Consolas"  # 将根据平台自动调整
   font_size: 12
   color_scheme: "default"
-  scrollback_lines: 1000
+  scrollback_lines: 10000  # 缓冲区大小（历史行数）
   cursor_blink: true
   bell_enabled: false
 

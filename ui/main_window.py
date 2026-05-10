@@ -191,6 +191,13 @@ class MainWindow(QMainWindow):
         fullscreen_action.triggered.connect(self._toggle_fullscreen)
         view_menu.addAction(fullscreen_action)
 
+        # 编辑菜单
+        edit_menu = menubar.addMenu("编辑(&E)")
+
+        scrollback_action = QAction("设置缓冲区大小(&B)...", self)
+        scrollback_action.triggered.connect(self._set_scrollback_size)
+        edit_menu.addAction(scrollback_action)
+
     def _connect_signals(self):
         """连接信号"""
         # 侧边栏信号
@@ -221,6 +228,37 @@ class MainWindow(QMainWindow):
             self.showNormal()
         else:
             self.showFullScreen()
+
+    def _set_scrollback_size(self):
+        """设置终端缓冲区大小"""
+        terminal_config = self.config_service.get('terminal', {})
+        current_size = terminal_config.get('scrollback_lines', 10000)
+
+        size, ok = QInputDialog.getInt(
+            self,
+            '设置缓冲区大小',
+            '请输入缓冲区行数（100-100000）：',
+            current_size,
+            100,
+            100000,
+            1000
+        )
+
+        if ok:
+            # 更新配置
+            self.config_service.set('terminal.scrollback_lines', size)
+            self.config_service.save()
+
+            # 更新所有打开的终端
+            for session in self.connection_manager.get_all_sessions():
+                if session.terminal:
+                    session.terminal.set_scrollback_lines(size)
+
+            QMessageBox.information(
+                self,
+                '设置成功',
+                f'缓冲区大小已设置为 {size} 行\n新设置将应用于所有打开的终端'
+            )
 
     def _on_new_ssh(self):
         """新建SSH连接"""
@@ -288,8 +326,12 @@ class MainWindow(QMainWindow):
 
     def _create_connection(self, config):
         """创建连接"""
+        # 获取终端配置
+        terminal_config = self.config_service.get('terminal', {})
+        scrollback_lines = terminal_config.get('scrollback_lines', 10000)
+
         # 创建终端
-        terminal = TerminalWidget()
+        terminal = TerminalWidget(scrollback_lines=scrollback_lines)
 
         # 根据类型创建连接
         if isinstance(config, SSHConnectionConfig):

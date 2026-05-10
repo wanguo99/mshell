@@ -19,7 +19,7 @@ class TerminalWidget(QTextEdit):
     # Signal: send data to connection
     data_to_send = pyqtSignal(bytes)
 
-    def __init__(self, parent=None, rows=24, cols=80):
+    def __init__(self, parent=None, rows=24, cols=80, scrollback_lines=10000):
         super().__init__(parent)
 
         self.platform = get_platform()
@@ -34,8 +34,8 @@ class TerminalWidget(QTextEdit):
         self.stream = pyte.Stream(self.screen)
 
         # History buffer for scrollback
-        self.history_lines = []
-        self.max_history = 10000  # 最大历史行数
+        self.max_history_lines = scrollback_lines  # 可配置的缓冲区大小
+        self.last_screen_content = []  # 上次渲染的屏幕内容
 
         # Setup terminal
         self._setup_terminal()
@@ -106,7 +106,7 @@ class TerminalWidget(QTextEdit):
             self.pending_data.clear()
 
     def _render_screen(self):
-        """Render pyte screen to QTextEdit"""
+        """Render pyte screen to QTextEdit using append mode"""
         if not self.dirty:
             return
 
@@ -122,101 +122,215 @@ class TerminalWidget(QTextEdit):
 
         # Save scroll position
         scrollbar = self.verticalScrollBar()
-        old_value = scrollbar.value()
-        at_bottom = (old_value == scrollbar.maximum())
+        at_bottom = (scrollbar.value() >= scrollbar.maximum() - 10)
 
-        # Get current cursor position
+        # 获取当前屏幕内容
+        current_screen = []
+        for y in range(self.screen.lines):
+            line_chars = []
+            for x in range(self.screen.columns):
+                char = self.screen.buffer[y][x]
+                line_chars.append((char.data, char.fg, char.bg, char.bold, char.italics, char.underscore, char.reverse))
+            current_screen.append(line_chars)
+
+        # 检测屏幕是否滚动（新行出现）
+        # 如果第一行内容变化，说明屏幕向上滚动了
+        if self.last_screen_content:
+            # 检查是否有新行输出（屏幕滚动）
+            if len(self.last_screen_content) > 0 and len(current_screen) > 0:
+                # 如果最后一行的内容变化了，或者整体内容向上移动了
+                # 我们采用简单策略：检测是否有完整的新行输出
+                last_line = self.last_screen_content[-1] if self.last_screen_content else []
+                current_first_line = current_screen[0] if current_screen else []
+
+                # 如果上次的最后一行不等于当前的第一行，说明可能有滚动
+                # 更简单的方法：检测整体内容是否向上移动
+                scrolled = False
+                if len(self.last_screen_content) >= 2 and len(current_screen) >= 2:
+                    # 检查上次的第二行是否等于当前的第一行
+                    if self.last_screen_content[1] == current_screen[0]:
+                        scrolled = True
+
+                if scrolled:
+                    # 屏幕滚动了，将上次的第一行追加到历史
+                    self._append_line_to_history(self.last_screen_content[0], default_fg, default_bg)
+
+        # 更新完整屏幕显示（仅在首次或清屏时）
+        if not self.last_screen_content or self.document().isEmpty():
+            self._render_full_screen(current_screen, default_fg, default_bg)
+        else:
+            # 增量更新：只更新变化的部分
+            self._update_screen_changes(current_screen, default_fg, default_bg)
+
+        # 保存当前屏幕内容
+        self.last_screen_content = current_screen
+
+        # 限制最大行数
+        self._trim_history()
+
+        # 智能滚动
+        if at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
+
+    def _append_line_to_history(self, line_chars, default_fg, default_bg):
+        """追加一行到历史缓冲区"""
         cursor = self.textCursor()
-
-        # Move to end and render new content
         cursor.movePosition(QTextCursor.End)
 
-        # Check if we need to save lines to history
-        # When screen scrolls, top lines move to history
-        current_line_count = self.document().blockCount()
-        if current_line_count > self.rows:
-            # Save excess lines to history
-            cursor.movePosition(QTextCursor.Start)
-            for _ in range(current_line_count - self.rows):
-                cursor.select(QTextCursor.LineUnderCursor)
-                line_text = cursor.selectedText()
-                if len(self.history_lines) >= self.max_history:
-                    self.history_lines.pop(0)
-                self.history_lines.append(line_text)
-                cursor.movePosition(QTextCursor.Down)
-                cursor.movePosition(QTextCursor.StartOfLine)
+        # 如果文档不为空，先添加换行
+        if not self.document().isEmpty():
+            cursor.insertText('\n')
 
-        # Clear and render current screen
+        # 渲染这一行
+        for char_data, fg, bg, bold, italics, underscore, reverse in line_chars:
+            char_format = QTextCharFormat()
+
+            # Set foreground color
+            if fg != 'default':
+                fg_color = self._convert_color(fg)
+                char_format.setForeground(QColor(*fg_color))
+            else:
+                char_format.setForeground(default_fg)
+
+            # Set background color
+            if bg != 'default':
+                bg_color = self._convert_color(bg)
+                char_format.setBackground(QColor(*bg_color))
+
+            # Set text styles
+            if bold:
+                char_format.setFontWeight(QFont.Bold)
+            if italics:
+                char_format.setFontItalic(True)
+            if underscore:
+                char_format.setFontUnderline(True)
+
+            # Reverse video
+            if reverse:
+                fg_c = char_format.foreground().color()
+                bg_c = char_format.background().color()
+                char_format.setForeground(bg_c)
+                char_format.setBackground(fg_c)
+
+            cursor.insertText(char_data, char_format)
+
+    def _render_full_screen(self, screen_content, default_fg, default_bg):
+        """完整渲染屏幕（首次或清屏后）"""
         self.clear()
         cursor = self.textCursor()
-        cursor.movePosition(QTextCursor.Start)
 
-        # Render history lines first (for scrollback)
-        # 减少历史行渲染数量以提升性能
-        max_visible_history = 500  # 只渲染最近500行历史
-        for hist_line in self.history_lines[-max_visible_history:]:
-            cursor.insertText(hist_line + '\n')
-
-        # Render each line from pyte screen
-        for y in range(self.screen.lines):
-            line = self.screen.buffer[y]
-
-            for x in range(self.screen.columns):
-                char = line[x]
-
-                # Create character format
+        for y, line_chars in enumerate(screen_content):
+            for char_data, fg, bg, bold, italics, underscore, reverse in line_chars:
                 char_format = QTextCharFormat()
 
                 # Set foreground color
-                if char.fg != 'default':
-                    fg_color = self._convert_color(char.fg)
+                if fg != 'default':
+                    fg_color = self._convert_color(fg)
                     char_format.setForeground(QColor(*fg_color))
                 else:
                     char_format.setForeground(default_fg)
 
                 # Set background color
-                if char.bg != 'default':
-                    bg_color = self._convert_color(char.bg)
+                if bg != 'default':
+                    bg_color = self._convert_color(bg)
                     char_format.setBackground(QColor(*bg_color))
 
                 # Set text styles
-                if char.bold:
+                if bold:
                     char_format.setFontWeight(QFont.Bold)
-                if char.italics:
+                if italics:
                     char_format.setFontItalic(True)
-                if char.underscore:
+                if underscore:
                     char_format.setFontUnderline(True)
 
                 # Reverse video
-                if char.reverse:
-                    fg = char_format.foreground().color()
-                    bg = char_format.background().color()
-                    char_format.setForeground(bg)
-                    char_format.setBackground(fg)
+                if reverse:
+                    fg_c = char_format.foreground().color()
+                    bg_c = char_format.background().color()
+                    char_format.setForeground(bg_c)
+                    char_format.setBackground(fg_c)
 
-                # Insert character
-                cursor.insertText(char.data, char_format)
+                cursor.insertText(char_data, char_format)
 
             # Add newline except for last line
-            if y < self.screen.lines - 1:
+            if y < len(screen_content) - 1:
                 cursor.insertText('\n')
 
-        # Position cursor at pyte cursor position (offset by history)
-        cursor.movePosition(QTextCursor.Start)
-        max_visible_history = 500
-        history_offset = min(len(self.history_lines), max_visible_history)
-        for _ in range(history_offset + self.screen.cursor.y):
-            cursor.movePosition(QTextCursor.Down)
-        for _ in range(self.screen.cursor.x):
-            cursor.movePosition(QTextCursor.Right)
+    def _update_screen_changes(self, current_screen, default_fg, default_bg):
+        """增量更新屏幕变化的部分"""
+        # 简化实现：暂时使用完整重绘最后N行的方式
+        # 获取文档总行数
+        total_lines = self.document().blockCount()
+        screen_lines = len(current_screen)
 
-        self.setTextCursor(cursor)
+        # 如果文档行数少于屏幕行数，说明是首次渲染
+        if total_lines < screen_lines:
+            self._render_full_screen(current_screen, default_fg, default_bg)
+            return
 
-        # Restore scroll position or scroll to bottom
-        if at_bottom:
-            scrollbar.setValue(scrollbar.maximum())
-        else:
-            scrollbar.setValue(old_value)
+        # 否则，更新最后screen_lines行
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.End)
+
+        # 向上移动到屏幕开始位置
+        for _ in range(screen_lines - 1):
+            cursor.movePosition(QTextCursor.Up)
+        cursor.movePosition(QTextCursor.StartOfLine)
+
+        # 选择并删除这些行
+        cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+        cursor.removeSelectedText()
+
+        # 重新渲染屏幕内容
+        for y, line_chars in enumerate(current_screen):
+            if y > 0:
+                cursor.insertText('\n')
+
+            for char_data, fg, bg, bold, italics, underscore, reverse in line_chars:
+                char_format = QTextCharFormat()
+
+                # Set foreground color
+                if fg != 'default':
+                    fg_color = self._convert_color(fg)
+                    char_format.setForeground(QColor(*fg_color))
+                else:
+                    char_format.setForeground(default_fg)
+
+                # Set background color
+                if bg != 'default':
+                    bg_color = self._convert_color(bg)
+                    char_format.setBackground(QColor(*bg_color))
+
+                # Set text styles
+                if bold:
+                    char_format.setFontWeight(QFont.Bold)
+                if italics:
+                    char_format.setFontItalic(True)
+                if underscore:
+                    char_format.setFontUnderline(True)
+
+                # Reverse video
+                if reverse:
+                    fg_c = char_format.foreground().color()
+                    bg_c = char_format.background().color()
+                    char_format.setForeground(bg_c)
+                    char_format.setBackground(fg_c)
+
+                cursor.insertText(char_data, char_format)
+
+    def _trim_history(self):
+        """限制历史行数"""
+        total_lines = self.document().blockCount()
+        if total_lines > self.max_history_lines:
+            # 删除顶部多余的行
+            lines_to_remove = total_lines - self.max_history_lines
+            cursor = self.textCursor()
+            cursor.movePosition(QTextCursor.Start)
+
+            for _ in range(lines_to_remove):
+                cursor.select(QTextCursor.LineUnderCursor)
+                cursor.removeSelectedText()
+                cursor.deleteChar()  # 删除换行符
 
     def _convert_color(self, color):
         """Convert pyte color to RGB tuple
@@ -355,10 +469,19 @@ class TerminalWidget(QTextEdit):
         # 标记所有事件为已处理，防止传播
         event.accept()
 
+    def set_scrollback_lines(self, lines):
+        """设置缓冲区大小"""
+        self.max_history_lines = max(100, min(lines, 100000))  # 限制在100-100000之间
+        self._trim_history()  # 立即应用新的限制
+
+    def get_scrollback_lines(self):
+        """获取当前缓冲区大小"""
+        return self.max_history_lines
+
     def clear(self):
         """Clear terminal"""
         self.document().clear()
-        self.history_lines.clear()  # 清空历史缓冲区
+        self.last_screen_content = []  # 清空屏幕内容缓存
 
     def set_font(self, font_family: str, font_size: int):
         """Set font
