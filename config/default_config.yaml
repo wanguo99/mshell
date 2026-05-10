@@ -146,3 +146,4 @@ application:
   check_updates: true
   save_session_on_exit: true
   restore_session_on_startup: true
+  replace_welcome_page: false  # 打开新连接后替换欢迎页

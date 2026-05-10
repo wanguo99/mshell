@@ -1,8 +1,8 @@
 """配置管理模块"""
 import yaml
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from mshell_platform.factory import get_platform
 
 
 class ConfigManager:
@@ -14,11 +14,14 @@ class ConfigManager:
         Args:
             config_file: 配置文件路径，如果为None则使用默认路径
         """
-        self._platform = get_platform()
         if config_file:
             self._config_file = Path(config_file)
         else:
-            self._config_file = self._platform.config.get_config_dir() / 'config.yaml'
+            # 使用可执行文件所在目录下的config目录
+            exe_dir = Path(os.path.dirname(os.path.abspath(__file__))).parent
+            config_dir = exe_dir / 'config'
+            self._config_file = config_dir / 'user_config.yaml'
+
         self._config: Dict[str, Any] = {}
         self._default_config_file = Path(__file__).parent / 'default_config.yaml'
 
@@ -180,3 +183,8 @@ class ConfigManager:
         """
         schemes = self.get_color_schemes()
         return schemes.get(name)
+
+    def reset_to_default(self) -> None:
+        """恢复默认配置"""
+        self._load_default_config()
+        self.save()

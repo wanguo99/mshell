@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (QDialog, QFormLayout, QLineEdit, QSpinBox,
 from PyQt5.QtCore import Qt
 
 from core.serial_connection import SerialConnection
+from ui.theme import Theme, get_stylesheet
 
 
 class SSHConnectionDialog(QDialog):
@@ -24,6 +25,7 @@ class SSHConnectionDialog(QDialog):
         """初始化UI"""
         self.setWindowTitle("SSH连接配置")
         self.setMinimumWidth(400)
+        self.setStyleSheet(get_stylesheet("dialog"))
 
         layout = QFormLayout(self)
 
@@ -70,6 +72,8 @@ class SSHConnectionDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
+        buttons.button(QDialogButtonBox.Ok).setStyleSheet(get_stylesheet("button_primary"))
+        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(get_stylesheet("button"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
@@ -104,6 +108,7 @@ class SerialConnectionDialog(QDialog):
         """初始化UI"""
         self.setWindowTitle("串口连接配置")
         self.setMinimumWidth(400)
+        self.setStyleSheet(get_stylesheet("dialog"))
 
         layout = QFormLayout(self)
 
@@ -163,6 +168,8 @@ class SerialConnectionDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
+        buttons.button(QDialogButtonBox.Ok).setStyleSheet(get_stylesheet("button_primary"))
+        buttons.button(QDialogButtonBox.Cancel).setStyleSheet(get_stylesheet("button"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
@@ -199,6 +206,7 @@ class SavedConnectionsDialog(QDialog):
         """初始化UI"""
         self.setWindowTitle("已保存的连接")
         self.setMinimumSize(500, 400)
+        self.setStyleSheet(get_stylesheet("dialog"))
 
         layout = QVBoxLayout(self)
 
@@ -212,20 +220,24 @@ class SavedConnectionsDialog(QDialog):
         button_layout = QHBoxLayout()
 
         self.btn_connect = QPushButton("连接")
+        self.btn_connect.setStyleSheet(get_stylesheet("button_primary"))
         self.btn_connect.clicked.connect(self.on_connect)
         button_layout.addWidget(self.btn_connect)
 
         self.btn_edit = QPushButton("编辑")
+        self.btn_edit.setStyleSheet(get_stylesheet("button"))
         self.btn_edit.clicked.connect(self.on_edit)
         button_layout.addWidget(self.btn_edit)
 
         self.btn_delete = QPushButton("删除")
+        self.btn_delete.setStyleSheet(get_stylesheet("button"))
         self.btn_delete.clicked.connect(self.on_delete)
         button_layout.addWidget(self.btn_delete)
 
         button_layout.addStretch()
 
         self.btn_close = QPushButton("关闭")
+        self.btn_close.setStyleSheet(get_stylesheet("button"))
         self.btn_close.clicked.connect(self.reject)
         button_layout.addWidget(self.btn_close)
 

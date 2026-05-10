@@ -13,6 +13,8 @@ from ui.widgets.sidebar import Sidebar
 from ui.widgets.welcome_page import WelcomePage
 from ui.dialogs.connection_dialogs import SSHConnectionDialog, SerialConnectionDialog, SavedConnectionsDialog
 from ui.dialogs.connection_close_dialog import ConnectionCloseDialog
+from ui.dialogs.settings_dialog import SettingsDialog
+from ui.theme import Theme, get_stylesheet, set_theme
 
 
 class MainWindow(QMainWindow):
@@ -26,12 +28,21 @@ class MainWindow(QMainWindow):
         self.config_service = ConfigService()
         self.connection_manager = ConnectionManager()
 
+        # 会话映射：terminal widget -> session
+        self.terminal_to_session = {}
+
         # 连接关闭行为配置
         self.auto_close_on_disconnect = None
+        self.confirm_exit_with_connections = None
 
         # 加载配置
         self.config_service.load()
         self.auto_close_on_disconnect = self.config_service.get_auto_close_on_disconnect()
+        self.confirm_exit_with_connections = self.config_service.get('confirm_exit_with_connections')
+
+        # 设置主题
+        theme_name = self.config_service.get('application', {}).get('theme', 'dark')
+        set_theme(theme_name)
 
         # 初始化UI
         self._init_ui()
@@ -68,7 +79,7 @@ class MainWindow(QMainWindow):
 
         # 标签栏容器
         tab_bar_container = QWidget()
-        tab_bar_container.setStyleSheet("QWidget { background-color: #3c3c3c; }")
+        tab_bar_container.setStyleSheet(f"QWidget {{ background-color: {Theme.TAB_BG}; }}")
         tab_bar_layout = QVBoxLayout(tab_bar_container)
         tab_bar_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -77,35 +88,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.setFocusPolicy(Qt.NoFocus)
         self.tab_widget.tabBar().setFocusPolicy(Qt.NoFocus)
-        self.tab_widget.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #3c3c3c;
-                background-color: #000000;
-                top: -1px;
-            }
-            QTabBar {
-                background-color: #3c3c3c;
-            }
-            QTabBar::tab {
-                background-color: #3c3c3c;
-                color: #aaaaaa;
-                border: 1px solid #4c4c4c;
-                border-bottom: none;
-                padding: 8px 16px;
-                margin-right: 2px;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background-color: #000000;
-                color: #cccccc;
-                border-bottom: 1px solid #000000;
-            }
-            QTabBar::tab:hover {
-                background-color: #4c4c4c;
-                color: #cccccc;
-            }
-        """)
+        self.tab_widget.setStyleSheet(get_stylesheet("tabwidget"))
 
         tab_bar_layout.addWidget(self.tab_widget)
         right_layout.addWidget(tab_bar_container)
@@ -118,40 +101,7 @@ class MainWindow(QMainWindow):
     def _create_menu_bar(self):
         """创建菜单栏"""
         menubar = self.menuBar()
-        menubar.setStyleSheet("""
-            QMenuBar {
-                background-color: #2b2b2b;
-                color: #cccccc;
-                border-bottom: 1px solid #3c3c3c;
-                padding: 2px;
-            }
-            QMenuBar::item {
-                background-color: transparent;
-                padding: 4px 10px;
-            }
-            QMenuBar::item:selected {
-                background-color: #3c3c3c;
-            }
-            QMenuBar::item:pressed {
-                background-color: #4c4c4c;
-            }
-            QMenu {
-                background-color: #2b2b2b;
-                color: #cccccc;
-                border: 1px solid #3c3c3c;
-            }
-            QMenu::item {
-                padding: 5px 25px 5px 20px;
-            }
-            QMenu::item:selected {
-                background-color: #3c3c3c;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #3c3c3c;
-                margin: 2px 0px;
-            }
-        """)
+        menubar.setStyleSheet(get_stylesheet("menubar"))
 
         # 文件菜单
         file_menu = menubar.addMenu("文件(&F)")
@@ -197,6 +147,14 @@ class MainWindow(QMainWindow):
         scrollback_action = QAction("设置缓冲区大小(&B)...", self)
         scrollback_action.triggered.connect(self._set_scrollback_size)
         edit_menu.addAction(scrollback_action)
+
+        # 工具菜单
+        tools_menu = menubar.addMenu("工具(&T)")
+
+        settings_action = QAction("设置(&S)...", self)
+        settings_action.setShortcut("Ctrl+,")
+        settings_action.triggered.connect(self._show_settings)
+        tools_menu.addAction(settings_action)
 
     def _connect_signals(self):
         """连接信号"""
@@ -329,25 +287,41 @@ class MainWindow(QMainWindow):
     def _on_connection_edit(self, config):
         """编辑连接配置"""
         # 根据连接类型打开相应的编辑对话框
+        # 将ConnectionConfig对象转换为字典
+        config_dict = config.config_dict
+
         if isinstance(config, SSHConnectionConfig):
-            dialog = SSHConnectionDialog(self, config)
+            dialog = SSHConnectionDialog(self, config_dict)
         else:
-            dialog = SerialConnectionDialog(self, config)
+            dialog = SerialConnectionDialog(self, config_dict)
 
         if dialog.exec_():
             new_config_dict = dialog.get_config()
+            # 保持原有的ID
+            new_config_dict['id'] = config.id
             new_config = create_connection_config(new_config_dict)
 
-            # 更新配置
-            self.config_service.update_connection(new_config)
+            # 通过ID更新配置
+            if self.config_service.update_connection(new_config):
+                self.sidebar.load_connections(self.config_service.get_connections())
+                QMessageBox.information(self, '编辑成功', f"连接 '{new_config.name}' 已更新")
+            else:
+                QMessageBox.warning(self, '编辑失败', f"无法更新连接 '{new_config.name}'")
 
-            # 刷新侧边栏
-            self.sidebar.load_connections(self.config_service.get_connections())
-
-            QMessageBox.information(self, '编辑成功', f"连接 '{new_config.name}' 已更新")
-
-    def _on_connection_delete(self, connection_name):
+    def _on_connection_delete(self, connection_id):
         """删除连接配置"""
+        # 通过ID查找连接名称用于显示
+        connections = self.config_service.get_connections()
+        connection_name = None
+        for conn in connections:
+            if conn.id == connection_id:
+                connection_name = conn.name
+                break
+
+        if not connection_name:
+            QMessageBox.warning(self, '删除失败', '找不到指定的连接')
+            return
+
         reply = QMessageBox.question(
             self, '确认删除',
             f"确定要删除连接 '{connection_name}' 吗？",
@@ -355,12 +329,12 @@ class MainWindow(QMainWindow):
         )
 
         if reply == QMessageBox.Yes:
-            self.config_service.delete_connection(connection_name)
-
-            # 刷新侧边栏
-            self.sidebar.load_connections(self.config_service.get_connections())
-
-            QMessageBox.information(self, '删除成功', f"连接 '{connection_name}' 已删除")
+            if self.config_service.delete_connection(connection_id):
+                # 刷新侧边栏
+                self.sidebar.load_connections(self.config_service.get_connections())
+                QMessageBox.information(self, '删除成功', f"连接 '{connection_name}' 已删除")
+            else:
+                QMessageBox.warning(self, '删除失败', f"无法删除连接 '{connection_name}'")
 
     def _create_connection(self, config):
         """创建连接"""
@@ -383,33 +357,83 @@ class MainWindow(QMainWindow):
         if not session:
             return
 
-        # 添加到标签页
-        index = self.tab_widget.addTab(terminal, config.name)
-        self.tab_widget.setCurrentIndex(index)
+        # 检查是否需要替换欢迎页
+        replace_welcome = self.config_service.get('application', {}).get('replace_welcome_page', False)
+
+        if replace_welcome and self.tab_widget.count() > 0:
+            # 检查第一个标签页是否是欢迎页
+            first_widget = self.tab_widget.widget(0)
+            if isinstance(first_widget, WelcomePage):
+                # 替换欢迎页
+                self.tab_widget.removeTab(0)
+                index = self.tab_widget.insertTab(0, terminal, config.name)
+                self.tab_widget.setCurrentIndex(0)
+            else:
+                # 正常添加标签页
+                index = self.tab_widget.addTab(terminal, config.name)
+                self.tab_widget.setCurrentIndex(index)
+        else:
+            # 正常添加标签页
+            index = self.tab_widget.addTab(terminal, config.name)
+            self.tab_widget.setCurrentIndex(index)
+
         terminal.setFocus()
+
+        # 设置会话的标签页索引
+        session.tab_index = index
+
+        # 保存终端到会话的映射
+        self.terminal_to_session[terminal] = session
 
     def _on_connection_created(self, session):
         """连接创建成功"""
         pass  # 已在_create_connection中处理
 
-    def _on_connection_closed(self, tab_index):
+    def _on_connection_closed(self, session_id):
         """连接关闭"""
+        # 根据session_id找到对应的session
+        session = self.connection_manager.get_session(session_id)
+        if not session:
+            return
+
+        terminal = session.terminal
+
+        # 找到terminal在tab_widget中的实际索引
+        actual_tab_index = -1
+        for i in range(self.tab_widget.count()):
+            if self.tab_widget.widget(i) == terminal:
+                actual_tab_index = i
+                break
+
+        if actual_tab_index == -1:
+            return
+
         # 根据配置决定是否关闭标签页
         if self.auto_close_on_disconnect is None:
             # 询问用户
-            session = self.connection_manager.get_session(tab_index)
-            if session:
-                dialog = ConnectionCloseDialog(session.tab_name, self)
-                result = dialog.exec_()
+            dialog = ConnectionCloseDialog(session.tab_name, self)
+            result = dialog.exec_()
 
-                if dialog.remember_choice:
-                    self.auto_close_on_disconnect = (result == QDialog.Accepted)
-                    self.config_service.set_auto_close_on_disconnect(self.auto_close_on_disconnect)
+            if dialog.remember_choice:
+                self.auto_close_on_disconnect = (result == QDialog.Accepted)
+                self.config_service.set_auto_close_on_disconnect(self.auto_close_on_disconnect)
 
-                if result == QDialog.Accepted:
-                    self.tab_widget.removeTab(tab_index)
+            if result == QDialog.Accepted:
+                # 先从映射中移除
+                if terminal in self.terminal_to_session:
+                    del self.terminal_to_session[terminal]
+                # 从连接管理器中移除
+                self.connection_manager.close_connection(session_id)
+                # 移除标签页
+                self.tab_widget.removeTab(actual_tab_index)
         elif self.auto_close_on_disconnect:
-            self.tab_widget.removeTab(tab_index)
+            # 先从映射中移除
+            if terminal in self.terminal_to_session:
+                del self.terminal_to_session[terminal]
+            # 从连接管理器中移除
+            self.connection_manager.close_connection(session_id)
+            # 移除标签页
+            self.tab_widget.removeTab(actual_tab_index)
 
     def _on_connection_error(self, error_msg):
         """连接错误"""
@@ -420,8 +444,18 @@ class MainWindow(QMainWindow):
         if index == 0:  # 欢迎页不能关闭
             return
 
-        # 关闭连接
-        self.connection_manager.close_connection(index)
+        # 获取要关闭的terminal widget
+        terminal = self.tab_widget.widget(index)
+
+        # 查找对应的session
+        session = self.terminal_to_session.get(terminal)
+        if session:
+            # 关闭连接
+            self.connection_manager.close_connection(session.session_id)
+            # 清除映射
+            del self.terminal_to_session[terminal]
+
+        # 移除标签页
         self.tab_widget.removeTab(index)
 
     def _show_saved_connections(self):
@@ -431,7 +465,85 @@ class MainWindow(QMainWindow):
             config = create_connection_config(dialog.selected_config)
             self._on_connection_selected(config)
 
+    def _show_settings(self):
+        """显示设置对话框"""
+        # 保存当前主题
+        old_theme = self.config_service.get('application', {}).get('theme', 'dark')
+
+        dialog = SettingsDialog(self.config_service, self)
+        if dialog.exec_():
+            # 获取新主题
+            new_theme = self.config_service.get('application', {}).get('theme', 'dark')
+
+            # 应用侧边栏显示设置
+            show_sidebar = self.config_service.get('ui', {}).get('show_sidebar', True)
+            self.sidebar.setVisible(show_sidebar)
+
+            # 重新加载配置到内存
+            self.auto_close_on_disconnect = self.config_service.get_auto_close_on_disconnect()
+            self.confirm_exit_with_connections = self.config_service.get('confirm_exit_with_connections')
+
+            # 检查主题是否改变
+            if old_theme != new_theme:
+                QMessageBox.information(
+                    self,
+                    '设置已保存',
+                    '设置已成功保存。主题、字体等设置需要重启应用后生效。'
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    '设置已保存',
+                    '设置已成功保存。'
+                )
+
     def closeEvent(self, event):
         """窗口关闭事件"""
+        # 检查是否有活动连接（排除欢迎页）
+        active_sessions = self.connection_manager.get_all_sessions()
+        open_tabs_count = self.tab_widget.count() - 1  # 减去欢迎页
+
+        if open_tabs_count > 0 and self.confirm_exit_with_connections is None:
+            # 有打开的标签页且未设置自动确认，询问用户
+            from PyQt5.QtWidgets import QMessageBox, QCheckBox
+
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("确认退出")
+            msg_box.setIcon(QMessageBox.Question)
+
+            # 显示活动连接数和总标签页数
+            if active_sessions:
+                msg_box.setText(f"当前有 {len(active_sessions)} 个活动连接，{open_tabs_count} 个打开的标签页")
+            else:
+                msg_box.setText(f"当前有 {open_tabs_count} 个打开的标签页")
+
+            msg_box.setInformativeText("确定要关闭所有标签页并退出吗？")
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg_box.setDefaultButton(QMessageBox.No)
+
+            # 添加"记住选择"复选框
+            remember_checkbox = QCheckBox("记住我的选择，不再提示")
+            msg_box.setCheckBox(remember_checkbox)
+
+            # 应用主题样式
+            msg_box.setStyleSheet(get_stylesheet("dialog"))
+
+            result = msg_box.exec_()
+
+            # 保存用户选择
+            if remember_checkbox.isChecked():
+                self.confirm_exit_with_connections = (result == QMessageBox.Yes)
+                self.config_service.set('confirm_exit_with_connections', self.confirm_exit_with_connections)
+                self.config_service.save()
+
+            if result == QMessageBox.No:
+                event.ignore()
+                return
+        elif open_tabs_count > 0 and not self.confirm_exit_with_connections:
+            # 用户之前选择了"否"并记住选择
+            event.ignore()
+            return
+
+        # 关闭所有连接
         self.connection_manager.close_all_connections()
         event.accept()

@@ -1,5 +1,6 @@
 """连接配置数据模型"""
 
+import uuid
 from typing import Optional, Dict, Any
 from enum import Enum
 
@@ -19,9 +20,18 @@ class ConnectionConfig:
         Args:
             config_dict: 配置字典
         """
+        self._config = config_dict
+        # 如果没有ID，生成一个新的UUID
+        if 'id' not in self._config:
+            self._config['id'] = str(uuid.uuid4())
+
         self.name = config_dict.get('name', 'Unnamed')
         self.type = ConnectionType(config_dict.get('type', 'ssh'))
-        self._config = config_dict
+
+    @property
+    def id(self) -> str:
+        """连接ID"""
+        return self._config.get('id', '')
 
     @property
     def config_dict(self) -> Dict[str, Any]:
@@ -33,7 +43,7 @@ class ConnectionConfig:
         return self._config.get(key, default)
 
     def __repr__(self):
-        return f"ConnectionConfig(name={self.name}, type={self.type.value})"
+        return f"ConnectionConfig(id={self.id}, name={self.name}, type={self.type.value})"
 
 
 class SSHConnectionConfig(ConnectionConfig):

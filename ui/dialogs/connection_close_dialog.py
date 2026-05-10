@@ -6,6 +6,7 @@ Dialog shown when a connection is closed, with option to remember choice.
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QCheckBox)
 from PyQt5.QtCore import Qt
+from ui.theme import Theme, get_stylesheet
 
 
 class ConnectionCloseDialog(QDialog):
@@ -22,6 +23,7 @@ class ConnectionCloseDialog(QDialog):
         self.setWindowTitle("连接已断开")
         self.setModal(True)
         self.setMinimumWidth(400)
+        self.setStyleSheet(get_stylesheet("dialog"))
 
         # 允许通过窗口关闭按钮关闭对话框
         self.setWindowFlags(self.windowFlags() | Qt.WindowCloseButtonHint)
@@ -30,16 +32,15 @@ class ConnectionCloseDialog(QDialog):
 
         # Message
         message = QLabel(f"连接 '{self.connection_name}' 已断开")
-        message.setStyleSheet("font-size: 14px; padding: 10px;")
+        message.setStyleSheet(f"font-size: 14px; padding: 10px; color: {Theme.TEXT_PRIMARY};")
         layout.addWidget(message)
 
         question = QLabel("是否关闭此标签页？")
-        question.setStyleSheet("font-size: 12px; padding: 10px;")
+        question.setStyleSheet(f"font-size: 12px; padding: 10px; color: {Theme.TEXT_SECONDARY};")
         layout.addWidget(question)
 
         # Remember checkbox
         self.remember_checkbox = QCheckBox("记住我的选择，不再提示")
-        self.remember_checkbox.setStyleSheet("padding: 10px;")
         layout.addWidget(self.remember_checkbox)
 
         # Buttons
@@ -48,11 +49,13 @@ class ConnectionCloseDialog(QDialog):
 
         self.btn_yes = QPushButton("是")
         self.btn_yes.setMinimumWidth(80)
+        self.btn_yes.setStyleSheet(get_stylesheet("button_primary"))
         self.btn_yes.clicked.connect(self.accept)
         button_layout.addWidget(self.btn_yes)
 
         self.btn_no = QPushButton("否")
         self.btn_no.setMinimumWidth(80)
+        self.btn_no.setStyleSheet(get_stylesheet("button"))
         self.btn_no.clicked.connect(self.reject)
         button_layout.addWidget(self.btn_no)
 

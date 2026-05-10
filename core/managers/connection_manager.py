@@ -7,21 +7,24 @@ from models.connection import ConnectionConfig, SSHConnectionConfig, SerialConne
 from models.session import Session
 from core.ssh_connection import SSHConnection
 from core.serial_connection import SerialConnection
+from core.managers.session_manager import get_session_manager
 from terminal.terminal_widget import TerminalWidget
 
 
 class ConnectionManager(QObject):
-    """连接管理器"""
+    """连接管理器
+
+    负责创建和管理连接，会话由全局 SessionManager 管理
+    """
 
     # 信号定义
     connection_created = pyqtSignal(Session)  # 连接创建成功
-    connection_closed = pyqtSignal(int)  # 连接关闭（tab_index）
+    connection_closed = pyqtSignal(str)  # 连接关闭（session_id）
     connection_error = pyqtSignal(str)  # 连接错误
 
     def __init__(self):
         super().__init__()
-        self._sessions: Dict[int, Session] = {}  # tab_index -> Session
-        self._next_tab_index = 0
+        self.session_manager = get_session_manager()
 
     def create_ssh_connection(self, config: SSHConnectionConfig, terminal: TerminalWidget) -> Optional[Session]:
         """创建SSH连接
@@ -37,8 +40,15 @@ class ConnectionManager(QObject):
             # 创建SSH连接
             ssh_conn = SSHConnection()
 
+            # 创建会话
+            session = Session(
+                config=config,
+                connection=ssh_conn,
+                terminal=terminal
+            )
+
             # 连接信号
-            ssh_conn.data_received.connect(lambda data: terminal.write_output(data.decode('utf-8', errors='ignore')))
+            ssh_conn.data_received.connect(lambda data: self._on_data_received(session, data))
             terminal.data_to_send.connect(ssh_conn.send)
 
             # 建立连接
@@ -60,21 +70,14 @@ class ConnectionManager(QObject):
             # 调整终端大小
             ssh_conn.resize_terminal(terminal.cols, terminal.rows)
 
-            # 创建会话
-            session = Session(
-                tab_index=self._next_tab_index,
-                config=config,
-                connection=ssh_conn,
-                terminal=terminal
-            )
+            # 设置会话为已连接状态
+            session.set_connected()
 
-            self._sessions[self._next_tab_index] = session
+            # 添加到全局会话管理器
+            self.session_manager.add_session(session)
 
             # 连接状态变化信号
-            tab_index = self._next_tab_index
-            ssh_conn.connection_changed.connect(lambda connected: self._on_connection_changed(tab_index, connected))
-
-            self._next_tab_index += 1
+            ssh_conn.connection_changed.connect(lambda connected: self._on_connection_changed(session.session_id, connected))
 
             self.connection_created.emit(session)
             return session
@@ -82,6 +85,11 @@ class ConnectionManager(QObject):
         except Exception as e:
             self.connection_error.emit(f"创建SSH连接失败: {str(e)}")
             return None
+
+    def _on_data_received(self, session: Session, data: bytes):
+        """数据接收回调"""
+        session.on_data_received(data)
+        session.terminal.write_output(data.decode('utf-8', errors='ignore'))
 
     def create_serial_connection(self, config: SerialConnectionConfig, terminal: TerminalWidget) -> Optional[Session]:
         """创建串口连接
@@ -97,8 +105,15 @@ class ConnectionManager(QObject):
             # 创建串口连接
             serial_conn = SerialConnection()
 
+            # 创建会话
+            session = Session(
+                config=config,
+                connection=serial_conn,
+                terminal=terminal
+            )
+
             # 连接信号
-            serial_conn.data_received.connect(lambda data: terminal.write_output(data.decode('utf-8', errors='ignore')))
+            serial_conn.data_received.connect(lambda data: self._on_data_received(session, data))
             terminal.data_to_send.connect(serial_conn.send)
 
             # 建立连接
@@ -112,21 +127,14 @@ class ConnectionManager(QObject):
                 self.connection_error.emit(f"串口连接失败: {config.port}")
                 return None
 
-            # 创建会话
-            session = Session(
-                tab_index=self._next_tab_index,
-                config=config,
-                connection=serial_conn,
-                terminal=terminal
-            )
+            # 设置会话为已连接状态
+            session.set_connected()
 
-            self._sessions[self._next_tab_index] = session
+            # 添加到全局会话管理器
+            self.session_manager.add_session(session)
 
             # 连接状态变化信号
-            tab_index = self._next_tab_index
-            serial_conn.connection_changed.connect(lambda connected: self._on_connection_changed(tab_index, connected))
-
-            self._next_tab_index += 1
+            serial_conn.connection_changed.connect(lambda connected: self._on_connection_changed(session.session_id, connected))
 
             self.connection_created.emit(session)
             return session
@@ -135,15 +143,14 @@ class ConnectionManager(QObject):
             self.connection_error.emit(f"创建串口连接失败: {str(e)}")
             return None
 
-    def close_connection(self, tab_index: int):
+    def close_connection(self, session_id: str):
         """关闭连接
 
         Args:
-            tab_index: 标签页索引
+            session_id: 会话ID
         """
-        if tab_index in self._sessions:
-            session = self._sessions[tab_index]
-
+        session = self.session_manager.get_session(session_id)
+        if session:
             # 断开信号连接
             try:
                 session.connection.connection_changed.disconnect()
@@ -151,35 +158,51 @@ class ConnectionManager(QObject):
                 pass
 
             session.disconnect()
-            del self._sessions[tab_index]
+            self.session_manager.remove_session(session_id)
 
-    def get_session(self, tab_index: int) -> Optional[Session]:
+    def get_session(self, session_id: str) -> Optional[Session]:
         """获取会话
 
         Args:
-            tab_index: 标签页索引
+            session_id: 会话ID
 
         Returns:
             Session对象，不存在返回None
         """
-        return self._sessions.get(tab_index)
+        return self.session_manager.get_session(session_id)
+
+    def get_session_by_terminal(self, terminal) -> Optional[Session]:
+        """通过终端widget获取会话
+
+        Args:
+            terminal: 终端widget
+
+        Returns:
+            Session对象，不存在返回None
+        """
+        for session in self.session_manager.get_all_sessions():
+            if session.terminal == terminal:
+                return session
+        return None
 
     def get_all_sessions(self) -> List[Session]:
         """获取所有会话"""
-        return list(self._sessions.values())
+        return self.session_manager.get_all_sessions()
 
     def close_all_connections(self):
         """关闭所有连接"""
-        for session in list(self._sessions.values()):
+        for session in self.session_manager.get_all_sessions():
             try:
                 session.connection.connection_changed.disconnect()
             except:
                 pass
             session.disconnect()
-        self._sessions.clear()
+        self.session_manager.close_all_sessions()
 
-    def _on_connection_changed(self, tab_index: int, connected: bool):
+    def _on_connection_changed(self, session_id: str, connected: bool):
         """连接状态变化回调"""
-        if not connected and tab_index in self._sessions:
-            self.connection_closed.emit(tab_index)
+        session = self.session_manager.get_session(session_id)
+        if not connected and session:
+            session.set_disconnected()
+            self.connection_closed.emit(session_id)
 

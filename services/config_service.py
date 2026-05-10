@@ -40,8 +40,8 @@ class ConfigService:
         try:
             connections = self._config_manager.get_connections()
 
-            # 检查是否已存在同名配置
-            existing = [c for c in connections if c.get('name') == config.name]
+            # 检查是否已存在相同ID的配置
+            existing = [c for c in connections if c.get('id') == config.id]
             if existing:
                 return False
 
@@ -71,9 +71,9 @@ class ConfigService:
         try:
             connections = self._config_manager.get_connections()
 
-            # 查找并更新
+            # 通过ID查找并更新
             for i, conn in enumerate(connections):
-                if conn.get('name') == config.name:
+                if conn.get('id') == config.id:
                     save_config = config.config_dict.copy()
                     if 'password' in save_config:
                         del save_config['password']
@@ -88,27 +88,41 @@ class ConfigService:
             print(f"更新连接配置失败: {e}")
             return False
 
-    def remove_connection(self, name: str) -> bool:
+    def remove_connection(self, connection_id: str) -> bool:
         """删除连接配置
 
         Args:
-            name: 连接名称
+            connection_id: 连接ID
 
         Returns:
             是否删除成功
         """
-        return self._config_manager.remove_connection(name)
+        try:
+            connections = self._config_manager.get_connections()
 
-    def delete_connection(self, name: str) -> bool:
+            # 通过ID查找并删除
+            for i, conn in enumerate(connections):
+                if conn.get('id') == connection_id:
+                    connections.pop(i)
+                    self._config_manager.set('connections', connections)
+                    self._config_manager.save()
+                    return True
+
+            return False
+        except Exception as e:
+            print(f"删除连接配置失败: {e}")
+            return False
+
+    def delete_connection(self, connection_id: str) -> bool:
         """删除连接配置（别名方法）
 
         Args:
-            name: 连接名称
+            connection_id: 连接ID
 
         Returns:
             是否删除成功
         """
-        return self.remove_connection(name)
+        return self.remove_connection(connection_id)
 
     def get_auto_close_on_disconnect(self) -> Optional[bool]:
         """获取连接断开时自动关闭标签页的配置"""

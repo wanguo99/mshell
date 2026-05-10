@@ -4,6 +4,7 @@
 """
 
 from typing import Dict, Tuple
+from ui.theme import Theme
 
 
 class ColorScheme:
@@ -34,13 +35,18 @@ class ColorScheme:
 
 
 class DefaultColorScheme(ColorScheme):
-    """默认颜色方案 (黑底白字)"""
+    """默认颜色方案 (使用统一主题)"""
 
     def __init__(self):
         super().__init__("default")
-        self.background = (0, 0, 0)
-        self.foreground = (229, 229, 229)
-        self.cursor = (255, 255, 255)
+        # 使用Theme中定义的终端颜色
+        bg = Theme.TERMINAL_BG.lstrip('#')
+        fg = Theme.TERMINAL_FG.lstrip('#')
+        cursor = Theme.TERMINAL_CURSOR.lstrip('#')
+
+        self.background = tuple(int(bg[i:i+2], 16) for i in (0, 2, 4))
+        self.foreground = tuple(int(fg[i:i+2], 16) for i in (0, 2, 4))
+        self.cursor = tuple(int(cursor[i:i+2], 16) for i in (0, 2, 4))
         self.selection = (70, 70, 70)
 
 
