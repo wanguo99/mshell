@@ -99,6 +99,17 @@ class ConfigService:
         """
         return self._config_manager.remove_connection(name)
 
+    def delete_connection(self, name: str) -> bool:
+        """删除连接配置（别名方法）
+
+        Args:
+            name: 连接名称
+
+        Returns:
+            是否删除成功
+        """
+        return self.remove_connection(name)
+
     def get_auto_close_on_disconnect(self) -> Optional[bool]:
         """获取连接断开时自动关闭标签页的配置"""
         return self._config_manager.get('auto_close_on_disconnect')

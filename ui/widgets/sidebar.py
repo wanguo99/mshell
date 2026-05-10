@@ -1,7 +1,9 @@
 """侧边栏组件"""
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                             QListWidget, QListWidgetItem, QPushButton, QMenu)
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QCursor
 
 from models.connection import ConnectionConfig
 
@@ -11,6 +13,8 @@ class Sidebar(QWidget):
 
     # 信号定义
     connection_selected = pyqtSignal(ConnectionConfig)  # 双击连接项
+    connection_edit = pyqtSignal(ConnectionConfig)  # 编辑连接
+    connection_delete = pyqtSignal(str)  # 删除连接（传递连接名称）
     new_ssh_clicked = pyqtSignal()  # 点击新建SSH按钮
     new_serial_clicked = pyqtSignal()  # 点击新建串口按钮
 
@@ -48,6 +52,8 @@ class Sidebar(QWidget):
         # 连接列表
         self.connections_list = QListWidget()
         self.connections_list.setFocusPolicy(Qt.NoFocus)
+        self.connections_list.setContextMenuPolicy(Qt.CustomContextMenu)  # 启用自定义右键菜单
+        self.connections_list.customContextMenuRequested.connect(self._show_context_menu)
         self.connections_list.setStyleSheet("""
             QListWidget {
                 background-color: #2b2b2b;
@@ -83,7 +89,7 @@ class Sidebar(QWidget):
             QPushButton {
                 background-color: #3c3c3c;
                 color: #cccccc;
-                border: 1px solid #4c4c4c;
+                border: none;
                 padding: 6px;
                 border-radius: 2px;
                 font-size: 11px;
@@ -106,7 +112,7 @@ class Sidebar(QWidget):
             QPushButton {
                 background-color: #3c3c3c;
                 color: #cccccc;
-                border: 1px solid #4c4c4c;
+                border: none;
                 padding: 6px;
                 border-radius: 2px;
                 font-size: 11px;
@@ -149,3 +155,46 @@ class Sidebar(QWidget):
         config = item.data(Qt.UserRole)
         if config:
             self.connection_selected.emit(config)
+
+    def _show_context_menu(self, position):
+        """显示右键菜单"""
+        item = self.connections_list.itemAt(position)
+        if not item:
+            return
+
+        config = item.data(Qt.UserRole)
+        if not config:
+            return
+
+        # 创建右键菜单
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #2b2b2b;
+                color: #cccccc;
+                border: 1px solid #3c3c3c;
+            }
+            QMenu::item {
+                padding: 5px 20px;
+            }
+            QMenu::item:selected {
+                background-color: #3c3c3c;
+            }
+        """)
+
+        # 连接动作
+        connect_action = menu.addAction("连接")
+        connect_action.triggered.connect(lambda: self.connection_selected.emit(config))
+
+        menu.addSeparator()
+
+        # 编辑动作
+        edit_action = menu.addAction("编辑")
+        edit_action.triggered.connect(lambda: self.connection_edit.emit(config))
+
+        # 删除动作
+        delete_action = menu.addAction("删除")
+        delete_action.triggered.connect(lambda: self.connection_delete.emit(config.name))
+
+        # 显示菜单
+        menu.exec_(QCursor.pos())

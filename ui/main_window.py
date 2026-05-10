@@ -202,6 +202,8 @@ class MainWindow(QMainWindow):
         """连接信号"""
         # 侧边栏信号
         self.sidebar.connection_selected.connect(self._on_connection_selected)
+        self.sidebar.connection_edit.connect(self._on_connection_edit)
+        self.sidebar.connection_delete.connect(self._on_connection_delete)
         self.sidebar.new_ssh_clicked.connect(self._on_new_ssh)
         self.sidebar.new_serial_clicked.connect(self._on_new_serial)
 
@@ -323,6 +325,42 @@ class MainWindow(QMainWindow):
                 config._config['password'] = password
 
         self._create_connection(config)
+
+    def _on_connection_edit(self, config):
+        """编辑连接配置"""
+        # 根据连接类型打开相应的编辑对话框
+        if isinstance(config, SSHConnectionConfig):
+            dialog = SSHConnectionDialog(self, config)
+        else:
+            dialog = SerialConnectionDialog(self, config)
+
+        if dialog.exec_():
+            new_config_dict = dialog.get_config()
+            new_config = create_connection_config(new_config_dict)
+
+            # 更新配置
+            self.config_service.update_connection(new_config)
+
+            # 刷新侧边栏
+            self.sidebar.load_connections(self.config_service.get_connections())
+
+            QMessageBox.information(self, '编辑成功', f"连接 '{new_config.name}' 已更新")
+
+    def _on_connection_delete(self, connection_name):
+        """删除连接配置"""
+        reply = QMessageBox.question(
+            self, '确认删除',
+            f"确定要删除连接 '{connection_name}' 吗？",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self.config_service.delete_connection(connection_name)
+
+            # 刷新侧边栏
+            self.sidebar.load_connections(self.config_service.get_connections())
+
+            QMessageBox.information(self, '删除成功', f"连接 '{connection_name}' 已删除")
 
     def _create_connection(self, config):
         """创建连接"""
